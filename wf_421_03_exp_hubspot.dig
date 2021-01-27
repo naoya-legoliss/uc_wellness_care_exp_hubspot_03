@@ -1,0 +1,82 @@
+timezone: Asia/Tokyo
+
+_export:
+  td:
+    !include : 'conf/variables.dig'
+
++stp_01_export_contact_properties:
+  for_each>:
+    column: ${td.columns}
+  _parallel: false
+  _do:
+    +create_table:
+      _retry:
+        limit: 3
+        interval: 600
+        interval_type: constant
+
+      td>: query/stp_01_create_export_table.sql
+      database: common_pd
+      create_table: tmp_hubspot_exp
+      store_last_results: true
+
+    +count:
+      _retry:
+        limit: 3
+        interval: 600
+        interval_type: constant
+
+      td>:
+      query: |
+        SELECT
+          COUNT(*) AS count
+        FROM
+          common_pd.tmp_hubspot_exp
+      store_last_results: true
+
+    +count_result:
+      echo>: tmp_hubspot_expへ${Math.ceil(td.last_results.count)}レコード出力
+
+    +export:
+      for_range>:
+        from: 0
+        to: ${Math.ceil(td.last_results.count)}
+        step: 900
+
+      _parallel: true
+      _do:
+        _retry:
+          limit: 3
+          interval: 300
+          interval_type: constant
+
+        td>:
+        query: |
+          SELECT
+            email,
+            name,
+            value,
+            fieldType,
+            type
+          FROM
+            common_pd.tmp_hubspot_exp
+          WHERE row_no BETWEEN ${range.from} AND ${range.to}
+        result_connection: hubspot_connection
+        result_settings:
+          type: hubspot
+          target: contact_properties
+          enable_batch: true
+
+        #取込成功
+        _check:
+          +succeed:
+            echo>: HUBSPOTセグメントテーブルの出力|${String(column).split("|")[0]}|${range.from} to ${range.to} > 成功
+
+        #取込失敗
+        _error:
+          +failed:
+            echo>: HUBSPOTセグメントテーブルの出力|${String(column).split("|")[0]}|${range.from} to ${range.to}  > ${error.message}
+
+
+
+
