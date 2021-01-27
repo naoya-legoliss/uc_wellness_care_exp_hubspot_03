@@ -61,7 +61,7 @@ _export:
           FROM
             common_pd.tmp_hubspot_exp
           WHERE row_no BETWEEN ${range.from} AND ${range.to}
-        result_connection: hubspot_connection
+        result_connection: auth_hubspot
         result_settings:
           type: hubspot
           target: contact_properties
